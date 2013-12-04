@@ -62,17 +62,17 @@
 // ACK functionality
 // Variables to assist to tracking of incoming packets
 __pdata uint16_t last_rx_packet_number;     // Used on receiver side to track last packet received
-static __bit ack_send_request;              //  (0 = no, 1= yes). Default to 0.
+static __bit ack_send_request;              // true/false. Defaults to false
 
 // Variables to manage outgoing of packets
 __pdata uint16_t packet_number;             // Used to code packet number in TX packets. Defaults to 0.
 __pdata uint8_t packet_resend_retry_count;  // Number of times we have attempted to retry. Defaults to 0.
-static __bit awaiting_receipt_of_ack;       // (0 = no, 1= yes). Defaults to 0.
-static __bit  packet_resend_request;        // (0 = no, 1 = yes). Defaults to 0.
+static __bit awaiting_receipt_of_ack;       // true/false. Defaults to false
+static __bit  packet_resend_request;        // true/false. Defaults to false
 
-__pdata uint16_t rx_packet_number;            // Holds packet number from ACK packet
+__pdata uint16_t rx_packet_number;          // Holds packet number from ACK packet
 
-__pdata uint8_t rx_count;                     // Used to track how many iterations done since last RX
+__pdata uint8_t rx_count;                   // Used to track how many iterations done since last RX
 __pdata uint8_t tx_count_since_last_control;  // Used to track how many TX we have done since last Control packet
 
 enum packet_types { PACKET_TYPE_CONTROL=0, PACKET_TYPE_DATA=1, PACKET_TYPE_ACK=2 };
@@ -85,7 +85,7 @@ __pdata static enum tdm_state tdm_state;
 /// a packet buffer for the TDM code
 __xdata uint8_t	pbuf[MAX_PACKET_LENGTH];
 
-// Holds previous packet data
+// Holds previous packet data for retransmission if ACK not received
 __xdata uint8_t pbuf_prev[MAX_PACKET_LENGTH];
 __pdata uint8_t len_prev;
 
@@ -636,8 +636,6 @@ tdm_serial_loop(void)
                                         }
                                         // don't count ACK packets
                                         statistics.receive_count--;
-                                        // REMOVED following condition from else if below
-                                        // !packet_is_duplicate(len, pbuf, trailer.resend) &&
                                 } else if (len != 0 &&
                                            !at_mode_active &&
                                            trailer.packet_type == PACKET_TYPE_DATA) {
@@ -662,6 +660,7 @@ tdm_serial_loop(void)
                                                 //printf("]\n");
                                         } else if (last_rx_packet_number == trailer.packet_number) {
                                                 // Other end must not have received our ACK...we send an ACK out of courtesy
+						// and are trying to re-send us a packet
                                                 ack_send_request = true;
 
                                                 // don't want to double up on packets
@@ -832,11 +831,10 @@ tdm_serial_loop(void)
                                 send_at_command = false;
                         } else if (packet_resend_request) {
 
-// TODO
 // Need to make sure len_prev <= max_xmit a better way then the above check
 // Need to find a way to break the packet up...or ensure that there is sufficient space
 // If it fails to find sufficient space...we end up sending a control packet instead...
-// and packet_resend_request still == 1.....so the radio attempts to transmit again
+// and packet_resend_request still == true.....so the radio attempts to transmit again
 // next time....and if it IS able to find sufficient space...only then does it increment
 // the counters.
 // NOTE: We still increment packet_resend_retry_count because we don't want to wait endlessly.
@@ -903,7 +901,7 @@ tdm_serial_loop(void)
     }
                         }
 
-                        // If we have a zero length packet reset the count
+                        // If we have a zero length packet reset the counter
                         if (len == 0) {
                                 tx_count_since_last_control = 0;
                         } else {
@@ -933,7 +931,7 @@ tdm_serial_loop(void)
                                 trailer.packet_type   = PACKET_TYPE_DATA;    // DATA packet
                                 trailer.packet_number = packet_number;
 
-                                awaiting_receipt_of_ack   = true;
+                                awaiting_receipt_of_ack = true;
                                 rx_count = 0;
                         }
 
@@ -978,10 +976,6 @@ tdm_serial_loop(void)
                 }
 
                 // start transmitting the packet
-                // if (!radio_transmit(len + sizeof(trailer), pbuf, tdm_state_remaining + (silence_period/2)) &&
-                //     len != 0 && trailer.window != 0 && trailer.command == 0) {
-                //      packet_force_resend();
-                // }
                 radio_transmit(len + sizeof(trailer), pbuf, tdm_state_remaining + (silence_period/2));
 
                 if (lbt_rssi != 0) {
@@ -1132,8 +1126,8 @@ tdm_init(void)
 
         // Variables to manage outgoing of packets
         packet_number = 0;                // Used to code packet number in TX packets. Defaults to 0.
-        awaiting_receipt_of_ack = false;      //  (0 = no, 1= yes). Defaults to 0.
-        packet_resend_request = false;        // (0 = no, 1 = yes). Defaults to 0.
+        awaiting_receipt_of_ack = false;  //  (0 = no, 1= yes). Defaults to 0.
+        packet_resend_request = false;    // (0 = no, 1 = yes). Defaults to 0.
         packet_resend_retry_count = 0;    // Number of times we have attempted to retry.
         rx_count = 0;                     // Number of TX since last PACKET_TYPE_DATA sent
         tx_count_since_last_control = 0;  // Set to zero
