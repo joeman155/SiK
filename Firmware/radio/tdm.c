@@ -203,7 +203,7 @@ tdm_show_rssi(void)
 	       (unsigned)errors.corrected_packets,
 	       (int)radio_temperature(),
 	       (unsigned)duty_cycle_offset);
-        printf(" retries=%u, lostPak=%u, Acks Sent=%u, Acks Rec=%u\n",
+        printf(" retries=%u, lostPaks=%u, Acks Sent=%u, Acks Rec=%u\n",
                 (unsigned)errors.retransmissions,
                 (unsigned)errors.lost_packets,
                 (unsigned)errors.acks_sent,
