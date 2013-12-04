@@ -38,7 +38,6 @@
 #include "tdm.h"
 #include "timer.h"
 #include "packet.h"
-#include "golay.h"
 #include "freq_hopping.h"
 #include "crc.h"
 
@@ -194,13 +193,11 @@ tdm_show_rssi(void)
 	       (unsigned)statistics.average_noise,
 	       (unsigned)remote_statistics.average_noise,
 	       (unsigned)statistics.receive_count);
-	printf(" txe=%u rxe=%u stx=%u srx=%u ecc=%u/%u temp=%d dco=%u\n",
+	printf(" txe=%u rxe=%u stx=%u srx=%u temp=%d dco=%u\n",
 	       (unsigned)errors.tx_errors,
 	       (unsigned)errors.rx_errors,
 	       (unsigned)errors.serial_tx_overflow,
 	       (unsigned)errors.serial_rx_overflow,
-	       (unsigned)errors.corrected_errors,
-	       (unsigned)errors.corrected_packets,
 	       (int)radio_temperature(),
 	       (unsigned)duty_cycle_offset);
         printf(" retries=%u, lostPaks=%u, Acks Sent=%u, Acks Rec=%u\n",
@@ -1013,11 +1010,6 @@ tdm_init(void)
 	}
 	packet_set_max_xmit(i);
 
-	// crc_test();
-
-	// tdm_test_timing();
-	
-	// golay_test();
 }
 
 

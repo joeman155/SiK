@@ -50,8 +50,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-// the biggest packet length we will allow. To allow for golay
-// encoding this needs to be a multiple of 6
+// the biggest packet length we will allow. 
 #define MAX_PACKET_LENGTH 252
 
 
@@ -134,7 +133,6 @@ struct error_counts {
 	uint16_t tx_errors;		///< count of packet transmit errors
 	uint16_t serial_tx_overflow;    ///< count of serial transmit overflows
 	uint16_t serial_rx_overflow;    ///< count of serial receive overflows
-	uint16_t corrected_errors;      ///< count of words corrected by golay code
 	uint16_t corrected_packets;     ///< count of packets corrected by golay code
         uint16_t retransmissions;       ///< # of retries in to total - ACK code
         uint16_t lost_packets;          ///< # of packets that we couldn't get through - ACK code

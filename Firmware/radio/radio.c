@@ -32,7 +32,6 @@
 #include "board.h"
 #include "radio.h"
 #include "timer.h"
-#include "golay.h"
 #include "crc.h"
 
 __xdata uint8_t radio_buffer[MAX_PACKET_LENGTH];
@@ -212,7 +211,7 @@ radio_clear_receive_fifo(void) __reentrant
 	register_write(EZRADIOPRO_OPERATING_AND_FUNCTION_CONTROL_2, control & ~EZRADIOPRO_FFCLRRX);
 }
 
-// simple transmit with no golay
+// simple transmit 
 //
 // @param length		number of data bytes to send
 // @param timeout_ticks		number of 16usec RTC ticks to allow
