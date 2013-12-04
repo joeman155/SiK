@@ -136,6 +136,10 @@ struct error_counts {
 	uint16_t serial_rx_overflow;    ///< count of serial receive overflows
 	uint16_t corrected_errors;      ///< count of words corrected by golay code
 	uint16_t corrected_packets;     ///< count of packets corrected by golay code
+        uint16_t retransmissions;       ///< # of retries in to total - ACK code
+        uint16_t lost_packets;          ///< # of packets that we couldn't get through - ACK code
+        uint16_t acks_sent;		///< # of ACK packets we have sent
+        uint16_t acks_received;		///< # of ACK packets we have received
 };
 __pdata extern struct error_counts errors;
 
