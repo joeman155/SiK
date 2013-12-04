@@ -76,10 +76,6 @@ static void	clear_status_registers(void);
 bool
 radio_receive_packet(uint8_t *length, __xdata uint8_t * __pdata buf)
 {
-	__xdata uint8_t gout[3];
-	__data uint16_t crc1, crc2;
-	__data uint8_t errcount = 0;
-	__data uint8_t elen;
 
 	if (!packet_received) {
 		return false;
@@ -98,81 +94,11 @@ radio_receive_packet(uint8_t *length, __xdata uint8_t * __pdata buf)
 	}
 #endif
 
-	if (!feature_golay) {
-		// simple unencoded packets
-		*length = receive_packet_length;
-		memcpy(buf, radio_buffer, receive_packet_length);
-		radio_receiver_on();
-		return true;
-	}
 
-	// decode it in the callers buffer. This relies on the
-	// in-place decode properties of the golay code. Decoding in
-	// this way allows us to overlap decoding with the next receive
+	// simple unencoded packets
+	*length = receive_packet_length;
 	memcpy(buf, radio_buffer, receive_packet_length);
-
-	// enable the receiver for the next packet. This also
-	// enables the EX0 interrupt
-	elen = receive_packet_length;
-	radio_receiver_on();	
-
-	if (elen < 12 || (elen%6) != 0) {
-		// not a valid length
-		debug("rx len invalid %u\n", (unsigned)elen);
-		goto failed;
-	}
-
-	// decode the header
-	errcount = golay_decode(6, buf, gout);
-	if (gout[0] != netid[0] ||
-	    gout[1] != netid[1]) {
-		// its not for our network ID 
-		debug("netid %x %x\n",
-		       (unsigned)gout[0],
-		       (unsigned)gout[1]);
-		goto failed;
-	}
-
-	if (6*((gout[2]+2)/3+2) != elen) {
-		debug("rx len mismatch1 %u %u\n",
-		       (unsigned)gout[2],
-		       (unsigned)elen);		
-		goto failed;
-	}
-
-	// decode the CRC
-	errcount += golay_decode(6, &buf[6], gout);
-	crc1 = gout[0] | (((uint16_t)gout[1])<<8);
-
-	if (elen != 12) {
-		errcount += golay_decode(elen-12, &buf[12], buf);
-	}
-
-	*length = gout[2];
-
-	crc2 = crc16(*length, buf);
-
-	if (crc1 != crc2) {
-		debug("crc1=%x crc2=%x len=%u [%x %x]\n",
-		       (unsigned)crc1, 
-		       (unsigned)crc2, 
-		       (unsigned)*length,
-		       (unsigned)buf[0],
-		       (unsigned)buf[1]);
-		goto failed;
-	}
-
-	if (errcount != 0) {
-		if ((uint16_t)(0xFFFF - errcount) > errors.corrected_errors) {
-			errors.corrected_errors += errcount;
-		} else {
-			errors.corrected_errors = 0xFFFF;
-		}
-		if (errors.corrected_packets != 0xFFFF) {
-			errors.corrected_packets++;
-		}
-	}
-
+	radio_receiver_on();
 	return true;
 
 failed:
@@ -412,55 +338,6 @@ radio_transmit_simple(__data uint8_t length, __xdata uint8_t * __pdata buf, __pd
 }
 
 
-// start transmitting a packet from the transmit FIFO
-//
-// @param length		number of data bytes to send
-// @param timeout_ticks		number of 16usec RTC ticks to allow
-//				for the send
-//
-// @return	    true if packet sent successfully
-//
-static bool
-radio_transmit_golay(uint8_t length, __xdata uint8_t * __pdata buf, __pdata uint16_t timeout_ticks)
-{
-	__pdata uint16_t crc;
-	__xdata uint8_t gin[3];
-	__data uint8_t elen, rlen;
-
-	if (length > (sizeof(radio_buffer)/2)-6) {
-		debug("golay packet size %u\n", (unsigned)length);
-		panic("oversized golay packet");		
-	}
-
-	// rounded length
-	rlen = ((length+2)/3)*3;
-
-	// encoded length
-	elen = (rlen+6)*2;
-
-	// start of packet is network ID and packet length
-	gin[0] = netid[0];
-	gin[1] = netid[1];
-	gin[2] = length;
-
-	// golay encode the header
-	golay_encode(3, gin, radio_buffer);
-
-	// next add a CRC, we round to 3 bytes for simplicity, adding 
-	// another copy of the length in the spare byte
-	crc = crc16(length, buf);
-	gin[0] = crc&0xFF;
-	gin[1] = crc>>8;
-	gin[2] = length;
-
-	// golay encode the CRC
-	golay_encode(3, gin, &radio_buffer[6]);
-
-	// encode the rest of the payload
-	golay_encode(rlen, buf, &radio_buffer[12]);
-
-	return radio_transmit_simple(elen, radio_buffer, timeout_ticks);
-}
 
 // start transmitting a packet from the transmit FIFO
 //
@@ -480,11 +357,8 @@ radio_transmit(uint8_t length, __xdata uint8_t * __pdata buf, __pdata uint16_t t
 	PA_ENABLE = 1;		// Set PA_Enable to turn on PA prior to TX cycle
 #endif
 	
-	if (!feature_golay) {
-		ret = radio_transmit_simple(length, buf, timeout_ticks);
-	} else {
-		ret = radio_transmit_golay(length, buf, timeout_ticks);
-	}
+	ret = radio_transmit_simple(length, buf, timeout_ticks);
+
 #ifdef _BOARD_RFD900A
 	PA_ENABLE = 0;		// Set PA_Enable to off the PA after TX cycle
 #endif
@@ -758,31 +632,19 @@ radio_configure(__pdata uint8_t air_rate)
 	set_frequency_registers(settings.frequency);
 	register_write(EZRADIOPRO_FREQUENCY_HOPPING_STEP_SIZE, settings.channel_spacing);
 
-	if (feature_golay) {
-		// when using golay encoding we use our own crc16
-		// instead of the hardware CRC, as we need to correct
-		// bit errors before checking the CRC
-		register_write(EZRADIOPRO_DATA_ACCESS_CONTROL,
-			       EZRADIOPRO_ENPACTX | 
-			       EZRADIOPRO_ENPACRX);
-		// 2 sync bytes and no header bytes
-		register_write(EZRADIOPRO_HEADER_CONTROL_2, EZRADIOPRO_HDLEN_0BYTE | EZRADIOPRO_SYNCLEN_2BYTE);
 
-		// no header check
-		register_write(EZRADIOPRO_HEADER_CONTROL_1, 0x00);
-	} else {
-		register_write(EZRADIOPRO_DATA_ACCESS_CONTROL,
-			       EZRADIOPRO_ENPACTX | 
-			       EZRADIOPRO_ENPACRX |
-			       EZRADIOPRO_ENCRC |
-			       EZRADIOPRO_CRC_16);
-		// 2 sync bytes and 2 header bytes
-		register_write(EZRADIOPRO_HEADER_CONTROL_2, EZRADIOPRO_HDLEN_2BYTE | EZRADIOPRO_SYNCLEN_2BYTE);
-		// check 2 bytes of header
-		register_write(EZRADIOPRO_HEADER_CONTROL_1, 0x0C);
-		register_write(EZRADIOPRO_HEADER_ENABLE_3, 0xFF);
-		register_write(EZRADIOPRO_HEADER_ENABLE_2, 0xFF);
-	}
+	register_write(EZRADIOPRO_DATA_ACCESS_CONTROL,
+		       EZRADIOPRO_ENPACTX | 
+		       EZRADIOPRO_ENPACRX |
+		       EZRADIOPRO_ENCRC |
+		       EZRADIOPRO_CRC_16);
+	// 2 sync bytes and 2 header bytes
+	register_write(EZRADIOPRO_HEADER_CONTROL_2, EZRADIOPRO_HDLEN_2BYTE | EZRADIOPRO_SYNCLEN_2BYTE);
+	// check 2 bytes of header
+	register_write(EZRADIOPRO_HEADER_CONTROL_1, 0x0C);
+	register_write(EZRADIOPRO_HEADER_ENABLE_3, 0xFF);
+	register_write(EZRADIOPRO_HEADER_ENABLE_2, 0xFF);
+
 
 
 	// set FIFO limits to allow for sending larger than 64 byte packets
@@ -926,14 +788,12 @@ radio_set_network_id(uint16_t id)
 {
 	netid[0] = id&0xFF;
 	netid[1] = id>>8;
-	if (!feature_golay) {
-		// when not using golay encoding we use the hardware
-		// headers for network ID
-		register_write(EZRADIOPRO_TRANSMIT_HEADER_3, id >> 8);
-		register_write(EZRADIOPRO_TRANSMIT_HEADER_2, id & 0xFF);
-		register_write(EZRADIOPRO_CHECK_HEADER_3, id >> 8);
-		register_write(EZRADIOPRO_CHECK_HEADER_2, id & 0xFF);
-	}
+
+	register_write(EZRADIOPRO_TRANSMIT_HEADER_3, id >> 8);
+	register_write(EZRADIOPRO_TRANSMIT_HEADER_2, id & 0xFF);
+	register_write(EZRADIOPRO_CHECK_HEADER_3, id >> 8);
+	register_write(EZRADIOPRO_CHECK_HEADER_2, id & 0xFF);
+
 }
 
 
@@ -1180,7 +1040,7 @@ INTERRUPT(Receiver_ISR, INTERRUPT_INT0)
 		last_rssi = register_read(EZRADIOPRO_RECEIVED_SIGNAL_STRENGTH_INDICATOR);
 	}
 
-	if (feature_golay == false && (status & EZRADIOPRO_ICRCERROR)) {
+	if (status & EZRADIOPRO_ICRCERROR) {
 		goto rxfail;
 	}
 
