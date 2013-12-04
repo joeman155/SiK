@@ -55,14 +55,14 @@
 
 // ACK functionality
 // Variables to assist to tracking of incoming packets
-__pdata uint16_t last_rx_packet_number;       // Used on receiver side to track last packet received
-__pdata uint8_t ack_send_request;             //  (0 = no, 1= yes). Default to 0.
+__pdata uint16_t last_rx_packet_number;     // Used on receiver side to track last packet received
+static __bit ack_send_request;              //  (0 = no, 1= yes). Default to 0.
 
 // Variables to manage outgoing of packets
-__pdata uint16_t packet_number;               // Used to code packet number in TX packets. Defaults to 0.
-__pdata uint8_t awaiting_receipt_of_ack;      //  (0 = no, 1= yes). Defaults to 0.
-__pdata uint8_t packet_resend_request;        // (0 = no, 1 = yes). Defaults to 0.
-__pdata uint8_t packet_resend_retry_count;    // Number of times we have attempted to retry. Defaults to 0.
+__pdata uint16_t packet_number;             // Used to code packet number in TX packets. Defaults to 0.
+__pdata uint8_t packet_resend_retry_count;  // Number of times we have attempted to retry. Defaults to 0.
+static __bit awaiting_receipt_of_ack;       // (0 = no, 1= yes). Defaults to 0.
+static __bit  packet_resend_request;        // (0 = no, 1 = yes). Defaults to 0.
 
 __pdata uint16_t rx_packet_number;            // Holds packet number from ACK packet
 
@@ -603,7 +603,7 @@ tdm_serial_loop(void)
                                 } else if (trailer.packet_type == PACKET_TYPE_ACK) {
                                         rx_packet_number = (pbuf[0]) + (pbuf[1] << 8);
                                         if (packet_number == rx_packet_number) {
-                                                awaiting_receipt_of_ack = 0;
+                                                awaiting_receipt_of_ack = false;
                                                 packet_resend_retry_count = 0;
                                                 errors.acks_received++;
                                         }
@@ -620,7 +620,7 @@ tdm_serial_loop(void)
                                         // handle when packet_number starts at '1' again.
                                         if (trailer.packet_number > last_rx_packet_number || trailer.packet_number == 1) {
                                                 last_rx_packet_number = trailer.packet_number;
-                                                ack_send_request = 1;
+                                                ack_send_request = true;
                                                 // its user data - send it out
                                                 // the serial port
                                                 //printf("rcv(%d,[", len);
@@ -630,14 +630,14 @@ tdm_serial_loop(void)
                                                 //printf("]\n");
                                         } else if (last_rx_packet_number == trailer.packet_number) {
                                                 // Other end must not have received our ACK...we send an ACK out of courtesy
-                                                ack_send_request = 1;
+                                                ack_send_request = true;
 
                                                 // don't want to double up on packets
                                                 statistics.receive_count--;
                                         } else {
                                                 // Some unexpected condition...send ACK to try and keep things processing.
                                                 // Send ACK
-                                                ack_send_request = 1;
+                                                ack_send_request = true;
                                                 last_rx_packet_number = trailer.packet_number;
                                                 statistics.receive_count--;
                                         }
@@ -738,23 +738,23 @@ tdm_serial_loop(void)
 
 
                 // Give up after a given number of max resends
-                if (awaiting_receipt_of_ack == 1 &&
+                if (awaiting_receipt_of_ack &&
                         packet_resend_retry_count >= PACKET_RESEND_MAX_ATTEMPTS) {
-                        awaiting_receipt_of_ack = 0;   // We are giing up trying to receive ACK
+                        awaiting_receipt_of_ack = false; // We are giing up trying to receive ACK
                         packet_resend_retry_count = 0; // Reset rety count to zero
-                        packet_resend_request = 0;     // Reset flag to try and tell code to resend
+                        packet_resend_request = false;   // Reset flag to try and tell code to resend
                         errors.lost_packets++;
                 }
 
                 // Check to see if are giving up waiting for an ACK
-                if (awaiting_receipt_of_ack == 1 && rx_count >= ACK_TIMEOUT) {
-                        packet_resend_request = 1;
+                if (awaiting_receipt_of_ack && rx_count >= ACK_TIMEOUT) {
+                        packet_resend_request = true;
                         rx_count = 0;
                 }
 
 
                 // Give preference to ACKS
-                if (ack_send_request == 0) {
+                if (! ack_send_request) {
 
                         // ask the packet system for the next packet to send
                         if (tx_count_since_last_control > TX_COUNT_WITHOUT_CONTROL_PACKET) {
@@ -771,7 +771,7 @@ tdm_serial_loop(void)
                                 memcpy(pbuf, remote_at_cmd, len);
                                 trailer.command = 1;
                                 send_at_command = false;
-                        } else if (packet_resend_request == 1) {
+                        } else if (packet_resend_request) {
 
 // TODO
 // Need to make sure len_prev <= max_xmit a better way then the above check
@@ -793,7 +793,7 @@ tdm_serial_loop(void)
                                 }
                                 trailer.command = packet_is_injected();
 
-                        } else if (awaiting_receipt_of_ack == 0) {
+                        } else if (! awaiting_receipt_of_ack) {
                                 // get a packet from the serial port only if we are not waiting for an ACK
                                 len = packet_get_next(max_xmit, pbuf);
                                 trailer.command = packet_is_injected();
@@ -851,7 +851,7 @@ tdm_serial_loop(void)
                                 trailer.packet_number = 0;
                         } else {
                                 // If a new packet (i.e. not resending) then increment packet_number
-                                if (packet_resend_request == 0) {
+                                if (! packet_resend_request) {
                                         packet_resend_retry_count = 0;
                                         // Reset packet number if we get to the end
                                         if (packet_number >= 65535) {
@@ -859,12 +859,12 @@ tdm_serial_loop(void)
                                         }
                                         packet_number++;
                                 } else {
-                                        packet_resend_request = 0;   // Yes we are attempting to resend. Finish.
+                                        packet_resend_request = false; // Yes we are attempting to resend. Finish.
                                 }
                                 trailer.packet_type   = PACKET_TYPE_DATA;    // DATA packet
                                 trailer.packet_number = packet_number;
 
-                                awaiting_receipt_of_ack   = 1;
+                                awaiting_receipt_of_ack   = true;
                                 rx_count = 0;
                         }
 
@@ -876,7 +876,7 @@ tdm_serial_loop(void)
                         trailer.window = (uint16_t)(tdm_state_remaining - flight_time_estimate(len+sizeof(trailer)));
                         trailer.packet_type   = PACKET_TYPE_ACK;
                         trailer.packet_number = 0;
-                        ack_send_request = 0;
+                        ack_send_request = false;
                         errors.acks_sent++;
                 }
 
@@ -946,13 +946,13 @@ tdm_init(void)
 
         // ACK functionality
         // Variables to assist to tracking of incoming packets
-        ack_send_request = 0;             //  (0 = no, 1= yes). Default to 0.
+        ack_send_request = false;         //  (0 = no, 1= yes). Default to 0.
         last_rx_packet_number = 0;        // the packet_number
 
         // Variables to manage outgoing of packets
         packet_number = 0;                // Used to code packet number in TX packets. Defaults to 0.
-        awaiting_receipt_of_ack = 0;      //  (0 = no, 1= yes). Defaults to 0.
-        packet_resend_request = 0;        // (0 = no, 1 = yes). Defaults to 0.
+        awaiting_receipt_of_ack = false;      //  (0 = no, 1= yes). Defaults to 0.
+        packet_resend_request = false;        // (0 = no, 1 = yes). Defaults to 0.
         packet_resend_retry_count = 0;    // Number of times we have attempted to retry.
         rx_count = 0;                     // Number of TX since last PACKET_TYPE_DATA sent
         tx_count_since_last_control = 0;  // Set to zero
