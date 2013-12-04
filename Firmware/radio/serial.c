@@ -355,6 +355,18 @@ serial_peek2(void)
 	return c;
 }
 
+uint8_t
+serial_peekx(uint16_t offset)
+{
+        register uint8_t c;
+
+        ES0_SAVE_DISABLE;
+        c = BUF_PEEKX(rx, offset);
+        ES0_RESTORE;
+
+        return c;
+}
+
 // read count bytes from the serial buffer. This implementation
 // tries to be as efficient as possible, while disabling interrupts
 // for as short a time as possible
