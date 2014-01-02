@@ -52,12 +52,12 @@ __code const struct parameter_info {
 } parameter_info[PARAM_MAX] = {
 	{"FORMAT", 		PARAM_FORMAT_CURRENT},
 	{"SERIAL_SPEED",	57}, // match APM default of 57600
-	{"AIR_SPEED",		64}, // relies on MAVLink flow control
+	{"AIR_SPEED",		8}, // relies on MAVLink flow control
 	{"NETID",		25},
 	{"TXPOWER",		0},
-	{"ECC",			1},
-	{"MAVLINK",		1},
-	{"OPPRESEND",		1},
+	{"ECC",			0},
+	{"MAVLINK",		0},
+	{"OPPRESEND",		0},
 	{"MIN_FREQ",		0},
 	{"MAX_FREQ",		0},
 	{"NUM_CHANNELS",	0},
