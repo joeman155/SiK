@@ -53,10 +53,16 @@
 #define RX_BUFF_MAX 1024 //2048
 #define TX_BUFF_MAX 1024
 #define ENCRYPT_BUFF_MAX 17*60 // 16 bit encrypted packets plus one for size
+#elif defined(ACK_CODE)
+// Smaller buffers required for smaller CPU...applicable for RFD900, RFD900A...not for RFD900p/pe which
+// use CPU_SI1030
+#define RX_BUFF_MAX 1790
+#define TX_BUFF_MAX 512
 #else
 #define RX_BUFF_MAX 1850
 #define TX_BUFF_MAX 645
 #endif // CPU_SI1030
+
 
 __xdata uint8_t rx_buf[RX_BUFF_MAX] = {0};
 __xdata uint8_t tx_buf[TX_BUFF_MAX] = {0};

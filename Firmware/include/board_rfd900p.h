@@ -62,6 +62,8 @@
 #ifndef _BOARD_RFD900P
 #define _BOARD_RFD900P
 
+#define ACK_CODE
+
 #include <compiler_defs.h>
 #include <Si1020_defs.h>
 
