@@ -898,7 +898,6 @@ tdm_serial_loop(void)
 #else // INCLUDE_AES
       trailer.window = (uint16_t)(tdm_state_remaining - flight_time_estimate(len+sizeof(trailer)));
 #endif // INCLUDE_AES
-    }
                         }
 
                         // If we have a zero length packet reset the counter
