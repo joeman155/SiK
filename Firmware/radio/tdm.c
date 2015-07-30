@@ -75,6 +75,10 @@ __pdata uint8_t rx_count;                   // Used to track how many iterations
 __pdata uint8_t tx_count_since_last_control;  // Used to track how many TX we have done since last Control packet
 
 enum packet_types { PACKET_TYPE_CONTROL=0, PACKET_TYPE_DATA=1, PACKET_TYPE_ACK=2 };
+
+// Holds previous packet data for retransmission if ACK not received
+__xdata uint8_t pbuf_prev[MAX_PACKET_LENGTH];
+__pdata uint8_t len_prev;
 #endif // ACK_CODE
 
 
@@ -84,13 +88,6 @@ __pdata static enum tdm_state tdm_state;
 
 /// a packet buffer for the TDM code
 __xdata uint8_t	pbuf[MAX_PACKET_LENGTH];
-
-#ifdef ACK_CODE
-// Holds previous packet data for retransmission if ACK not received
-__xdata uint8_t pbuf_prev[MAX_PACKET_LENGTH];
-__pdata uint8_t len_prev;
-#endif // ACK_CODE
-
 
 /// how many 16usec ticks are remaining in the current state
 __pdata static uint16_t tdm_state_remaining;
