@@ -35,10 +35,6 @@
 #ifndef _GOLAY23_H_
 #define _GOLAY23_H_
 
-#ifndef INCLUDE_AES
-#define INCLUDE_GOLAY
-#endif
-
 #ifdef INCLUDE_GOLAY
 
 static const __code uint16_t golay23_encode[4096] = {

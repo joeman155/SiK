@@ -67,4 +67,9 @@
 
 #include "board_rfd900p.h"
 
+// Do not want GOLAY included if AES is included
+#ifdef INCLUDE_GOLAY
+#undef INCLUDE_GOLAY
+#endif
+
 #endif // _BOARD_RFD900PE
