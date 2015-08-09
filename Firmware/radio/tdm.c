@@ -177,8 +177,10 @@ struct tdm_trailer {
 	uint16_t command:1;
 	uint16_t bonus:1;
 	uint16_t resend:1;
+#ifdef ACK_CODE
         uint16_t packet_number:16;
         uint16_t packet_type:3;
+#endif // ACK_CODE
 };
 __pdata struct tdm_trailer trailer;
 
